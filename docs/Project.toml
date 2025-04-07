@@ -1,0 +1,6 @@
+[deps]
+IMMC2025 = "9111c9e1-42f4-4540-8384-405df69232ec"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+
+[sources]
+IMMC2025 = {path = ".."}

@@ -1,0 +1,9 @@
+[deps]
+IMMC2025 = "9111c9e1-42f4-4540-8384-405df69232ec"
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+JuliaFormatter = "98e50ef6-434e-11e9-1051-2b60c6c9e899"
+LocalCoverage = "5f6e1e16-694c-5876-87ef-16b5274f298e"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+IMMC2025 = {path = ".."}
