@@ -25,6 +25,7 @@ function get_probability(pbweigth, pcweigth, pa, pb)
 end
 
 ############################# Grouping ##################################
+######### Commence ici#########
 
 const MAX_TIME = 120
 const SUBPB_SIZE = 2
@@ -32,24 +33,29 @@ const SUBPB_TIMEOUT = 20
 
 function Grouping(N)
 
+    # Model initializatio
     model = Model(HiGHS.Optimizer)
-    set_time_limit_sec(model, MAX_TIME)
-    set_silent(model)
+    set_time_limit_sec(model, MAX_TIME)
 
+    # We generate a dummy initial schedule 
     x_init = _generate_initial_solution(N)
 
-
+    # To handle the breaks
     @variable(model, b_break[i=1:N, k=1:2N-3])
+
+    # This will contain our output calendar
     @variable(model, x[i=1:N, j=1:N, k=1:2N-2])
+
     @variable(model, home_games[i=1:N] >= 0)
     @variable(model, max_home)
     @variable(model, min_home)
 
-    ## 2 Matchs par equipes
+    ## Contraint a team i to only have to match with a team j
     for i in Base.OneTo(N), j in Base.OneTo(N)
         i != j && @constraint(model, sum(x[i,j,k] + x[j,i,k] for k in Base.OneTo(2N-2)) == 2)
     end
 
+    # Constraint the model to avoid AAA or HHH (playing 3 consecutive match Away or at Home)
     for i in Base.OneTo(N), k in Base.OneTo(2N-3)
         
         @constraint(model, b_break[i,k] >= sum(x[i,j,k] - x[i,j,k+1] for j in Base.OneTo(N) if j != i))
@@ -62,52 +68,16 @@ function Grouping(N)
         @constraint(model, min_home <= home_games[i])
     end
 
+    # We apply the optimization on the model and return it
     return _fix_and_optimize!(model,x,x_init,N,b_break,max_home,min_home)
-end
-
-function Grouping(N, strength)
-
-    model = Model(HiGHS.Optimizer)
-    set_time_limit_sec(model, MAX_TIME)
-    set_silent(model)
-
-    x_init = _generate_initial_solution(N, strength)
-
-
-    @variable(model, b_break[i=1:N, k=1:2N-3])
-    @variable(model, x[i=1:N, j=1:N, k=1:2N-2])
-    @variable(model, fairness_penalty)
-
-    ## 2 Matchs par equipes
-    for i in Base.OneTo(N), j in Base.OneTo(N)
-        i != j && @constraint(model, sum(x[i,j,k] + x[j,i,k] for k in Base.OneTo(2N-2)) == 2)
-    end
-
-    for i in Base.OneTo(N), k in Base.OneTo(2N-3)
-        
-        @constraint(model, b_break[i,k] >= sum(x[i,j,k] - x[i,j,k+1] for j in Base.OneTo(N) if j != i))
-        @constraint(model, b_break[i,k] >= sum(x[j,i,k] - x[j,i,k+1] for j in Base.OneTo(N) if j != i))
-    end
-
-    @expression(model, opponent_strength[i],
-        sum(strength[j] * (x[i,j,k] + x[j,i,k]) for j in Base.OneTo(N), k in Base.OneTo(2N-2) if j != i) / (2N-2)
-    )
-    for i in Base.OneTo(N)
-        if strength[i] < 0.5
-            @constraint(model, sum(x[i,j,k] for j in Base.OneTo(N), k in Base.OneTo(2N-2) if j != i) >= 0.4*(2N-2))
-        end
-    end
-
-    return _fix_and_optimize!(model,x,x_init,N)
-end
-
-## Relevant Criterion, win, losses
+end
 
 ############################ Helpers ############################
 
 function _generate_initial_solution(N::Int)
     x = zero(Array{Int}(undef,N, N, 2N-2))
 
+    # we just fill the calendar with dummy values
     for k in Base.OneTo(2N-2)
         for i in Base.OneTo(N)
             j = mod(i + k -1, N) +1
@@ -141,13 +111,16 @@ end
 
 function _fix_and_optimize!(model,x,x_init,N,b_break,max_home,min_home)
     
+    # We fix every value of the calendar 
     for i in Base.OneTo(N), j in Base.OneTo(N), k in Base.OneTo(2N-2)
         fix(x[i,j,k], x_init[i,j,k]; force=true)
     end
 
+    # initial best objective, slower is better
     best_obj = Inf
     start_time = time()
 
+    # The optimization will run for MAX_TIME second 
     while time() - start_time < MAX_TIME
         
         if rand() < 0.5
@@ -169,11 +142,7 @@ function _fix_and_optimize!(model,x,x_init,N,b_break,max_home,min_home)
 
         set_time_limit_sec(model, SUBPB_TIMEOUT)
 
-        @objective(model, Min, sum(b_break) + (max_home - min_home))
-        #@objective(model, Min,
-        #    sum(b_break[i,k] * (1 - strength[i]) for i in Base.OneTo(N), k in Base.OneTo(2N-3)) +
-        #    fairness_penalty * 2.0 + sum(opponent_strength[i] * strength[i] for i in Base.OneTo(N))
-        #)
+        @objective(model, Min, sum(b_break) + (max_home - min_home))
 
         optimize!(model)
 
@@ -193,6 +162,9 @@ function _fix_and_optimize!(model,x,x_init,N,b_break,max_home,min_home)
 
     return x_init
 end
+
+######## Arrêté ici#####
+
 function _entrywise_prod(A::Array{Number}, B::Array{Number})
 
     @assert size(A) == size(B) "Arrays should have the same dimensions"
